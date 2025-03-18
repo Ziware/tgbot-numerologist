@@ -56,7 +56,7 @@ fi
 
 log "Starting Docker..."
 
-if [ -f "$DOCKER_COMPOSE_FILE" ] && [ "$HAS_DOCKER_COMPOSE" = "1" ]; then
+if [ -f "$DOCKER_COMPOSE_FILE" ]; then
     log "Stopping existing containers..."
     docker-compose -f "$DOCKER_COMPOSE_FILE" down
 
