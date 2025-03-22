@@ -57,11 +57,14 @@ fi
 log "Starting Docker..."
 
 if [ -f "$DOCKER_COMPOSE_FILE" ]; then
+    log "Building image with Docker Compose..."
+    docker-compose -f "$DOCKER_COMPOSE_FILE" build
+
     log "Stopping existing containers..."
     docker-compose -f "$DOCKER_COMPOSE_FILE" down
 
-    log "Building and starting with Docker Compose..."
-    docker-compose -f "$DOCKER_COMPOSE_FILE" up -d --build || error "Error when starting Docker Compose"
+    log "Starting with Docker Compose..."
+    docker-compose -f "$DOCKER_COMPOSE_FILE" up -d || error "Error when starting Docker Compose"
     
     log "Docker Compose successfully started!"
 else
