@@ -1,4 +1,4 @@
-FROM golang:1.24-alpine as builder
+FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
 
@@ -17,4 +17,4 @@ WORKDIR /root/
 
 COPY --from=builder /app/bot .
 
-ENTRYPOINT ["./bot"]
+ENTRYPOINT ["./bot", "--logfile", "/logs/logs.log"]
