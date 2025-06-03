@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 
+	"tgbot-numerologist/ai"
 	"tgbot-numerologist/communicate"
 	"tgbot-numerologist/database"
 	"tgbot-numerologist/utils"
@@ -33,8 +34,20 @@ func main() {
 	if redisPort == "" {
 		log.Fatal("REDIS_PORT environment variable is not set")
 	}
+	proxyURL := os.Getenv("PROXY_URL")
+	if proxyURL == "" {
+		log.Fatal("PROXY_URL environment variable is not set")
+	}
+	gptKey := os.Getenv("CHATGPT_KEY")
+	if gptKey == "" {
+		log.Fatal("CHATGPT_KEY environment variable is not set")
+	}
 
 	database.InitRDB(redisHost, redisPort)
+	err = ai.Init(gptKey, proxyURL)
+	if err != nil {
+		log.Fatal("Couldn't init ai client: %w", err)
+	}
 
 	bot, err := tgbotapi.NewBotAPI(token)
 	if err != nil {

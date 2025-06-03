@@ -3,6 +3,7 @@ package communicate
 import (
 	"errors"
 
+	"tgbot-numerologist/ai"
 	"tgbot-numerologist/database"
 	"tgbot-numerologist/objects"
 	"tgbot-numerologist/utils"
@@ -70,7 +71,26 @@ func HandleEditMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, profile 
 }
 
 func HandlePredictions(bot *tgbotapi.BotAPI, message *tgbotapi.Message, profile *objects.Profile) {
-	SendText(bot, message.Chat.ID, "Предсказаний пока что нет (")
+	var messages []ai.Message
+	messages = append(messages, ai.Message{Role: ai.RoleSystem, Content: utils.SystemPrompt})
+	profileStr, err := objects.ProfileAIMessage(profile)
+	if err != nil {
+		utils.Log("Err formatting profile: %s", err.Error())
+		SendError(bot, message.Chat.ID, errors.New(utils.ErrFillRequired))
+		return
+	}
+	messages = append(messages, ai.Message{Role: ai.RoleUser, Content: profileStr})
+	SendText(bot, message.Chat.ID, "Ожидаю нумерологический прогноз...")
+	msgText, err := ai.GPTClient.SendMessage(messages)
+	if err != nil {
+		utils.Log("Err getting ai response: %s", err.Error())
+		SendError(bot, message.Chat.ID, errors.New(utils.ErrGotSomeProblems))
+		return
+	}
+	msg := tgbotapi.NewMessage(message.Chat.ID, msgText)
+	msg.ReplyMarkup = objects.ProfileKeyboard()
+	msg.ParseMode = "Markdown"
+	SendMessage(bot, &msg)
 }
 
 func HandleStop(bot *tgbotapi.BotAPI, message *tgbotapi.Message, profile *objects.Profile) {
