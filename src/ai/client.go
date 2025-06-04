@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -18,7 +19,7 @@ type Client struct {
 	httpClient *http.Client
 }
 
-var model string = "gpt-4o"
+var model string = "gpt-4.1"
 
 type MessageRole string
 
@@ -36,6 +37,21 @@ type Message struct {
 type Request struct {
 	Model    string    `json:"model"`
 	Messages []Message `json:"messages"`
+}
+
+type Response struct {
+	Choices []Choice `json:"choices"`
+}
+type Choice struct {
+	Message Message `json:"message"`
+}
+
+type ErrorResponse struct {
+	Error ErrorObject `json:"error"`
+}
+type ErrorObject struct {
+	Message string `json:"message"`
+	Type    string `json:"type"`
 }
 
 var GPTClient *Client
@@ -90,30 +106,43 @@ func (c *Client) SendMessage(messages []Message) (string, error) {
 		}
 		defer resp.Body.Close()
 
-		if resp.StatusCode == http.StatusTooManyRequests {
+		var errResp ErrorResponse
+		if resp.StatusCode != http.StatusOK {
 			body, err := io.ReadAll(resp.Body)
 			if err != nil {
-				body = make([]byte, 0)
+				lastErrBody = "unable to parse error body"
+				time.Sleep(1)
+				continue
 			}
-			lastErrBody = string(body)
+			if err := json.Unmarshal([]byte(body), &errResp); err == nil && errResp.Error.Message != "" {
+				lastErrBody = fmt.Sprintf("API error, type: %s: %s", errResp.Error.Type, errResp.Error.Message)
+				continue
+			}
+		}
+
+		if resp.StatusCode == http.StatusTooManyRequests {
 			time.Sleep(1)
 			continue
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			body, err := io.ReadAll(resp.Body)
-			if err != nil {
-				body = make([]byte, 0)
-			}
-			return "", errors.New("non-OK HTTP status: " + resp.Status + ", error: " + string(body))
+			return "", fmt.Errorf("API error status %d, type: %s: %s", resp.StatusCode, errResp.Error.Type, errResp.Error.Message)
 		}
 
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return "", err
 		}
+		var r Response
+		if err := json.Unmarshal([]byte(body), &r); err != nil {
+			return "", err
+		}
 
-		return string(body), nil
+		if len(r.Choices) > 0 {
+			content := r.Choices[0].Message.Content
+			return content, nil
+		}
+		return "", errors.New("No choices found in json")
 	}
 
 	return "", errors.New("Retries exceeded: " + lastErrBody)

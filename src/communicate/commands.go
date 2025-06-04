@@ -74,6 +74,7 @@ func HandlePredictions(bot *tgbotapi.BotAPI, message *tgbotapi.Message, profile 
 	var messages []ai.Message
 	messages = append(messages, ai.Message{Role: ai.RoleSystem, Content: utils.SystemPrompt})
 	profileStr, err := objects.ProfileAIMessage(profile)
+	utils.Log("Profile message: %s", profileStr)
 	if err != nil {
 		utils.Log("Err formatting profile: %s", err.Error())
 		SendError(bot, message.Chat.ID, errors.New(utils.ErrFillRequired))
@@ -87,8 +88,8 @@ func HandlePredictions(bot *tgbotapi.BotAPI, message *tgbotapi.Message, profile 
 		SendError(bot, message.Chat.ID, errors.New(utils.ErrGotSomeProblems))
 		return
 	}
+	utils.Log("AI Answer: %s", msgText)
 	msg := tgbotapi.NewMessage(message.Chat.ID, msgText)
-	msg.ReplyMarkup = objects.ProfileKeyboard()
 	msg.ParseMode = "Markdown"
 	SendMessage(bot, &msg)
 }

@@ -109,38 +109,30 @@ func ProfileAIMessage(profile *Profile) (string, error) {
 			continue
 		}
 
+		var strValue string
+		if fieldValue.Type() == reflect.TypeOf(time.Time{}) {
+			if tt, ok := fieldValue.Interface().(time.Time); ok && !tt.IsZero() {
+				strValue = tt.Format("02.01.2006")
+			} else {
+				strValue = ""
+			}
+		} else {
+			strValue = fmt.Sprint(fieldValue.Interface())
+		}
+
 		switch fieldType {
 		case "internal":
 			continue
 		case "required":
-			if isEmptyValue(fieldValue) {
+			if len(strValue) == 0 {
 				return "", fmt.Errorf("required field '%s' is empty", field.Name)
 			}
-			res += field.Name + ": " + fieldValue.String() + "\n"
+			res += field.Name + ": " + strValue + "\n"
 		case "optional":
-			if !isEmptyValue(fieldValue) {
-				res += field.Name + ": " + fieldValue.String() + "\n"
+			if len(strValue) != 0 {
+				res += field.Name + ": " + strValue + "\n"
 			}
 		}
 	}
 	return res, nil
-}
-
-func isEmptyValue(v reflect.Value) bool {
-	switch v.Kind() {
-	case reflect.String:
-		return v.Len() == 0
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return v.Int() == 0
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return v.Uint() == 0
-	case reflect.Float32, reflect.Float64:
-		return v.Float() == 0
-	case reflect.Bool:
-		return !v.Bool()
-	case reflect.Struct, reflect.Array, reflect.Slice, reflect.Map, reflect.Ptr:
-		return v.IsZero()
-	default:
-		return false
-	}
 }
