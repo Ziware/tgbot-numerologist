@@ -142,6 +142,7 @@ func HandlePredictions(bot *tgbotapi.BotAPI, message *tgbotapi.Message, profile 
 	msg.ParseMode = "Markdown"
 	if SendMessage(bot, &msg) {
 		profile.Quote -= 1
+		profile.Predictions += 1
 		err = database.SaveProfileToRedis(profile)
 		if err != nil {
 			utils.Log("error on save profile when edit: %s", err.Error())
