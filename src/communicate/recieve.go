@@ -94,6 +94,8 @@ func DetermineCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, profile *
 		HandleIntro(bot, message)
 	case "help":
 		HandleHelp(bot, message)
+	case "feedback":
+		HandleFeedback(bot, message)
 	case "payment":
 		HandlePayment(bot, message, profile)
 	case "reset":

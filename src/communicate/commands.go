@@ -20,6 +20,10 @@ func HandleHelp(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	SendText(bot, message.Chat.ID, utils.HelpMessage)
 }
 
+func HandleFeedback(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
+	SendText(bot, message.Chat.ID, utils.FeedbackMessage)
+}
+
 func HandlePayment(bot *tgbotapi.BotAPI, message *tgbotapi.Message, profile *objects.Profile) {
 	msgText := fmt.Sprintf(utils.PaymentMessage, profile.Quote, profile.Predictions)
 	msg := tgbotapi.NewMessage(profile.ChatID, msgText)
