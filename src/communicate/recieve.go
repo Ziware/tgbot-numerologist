@@ -89,7 +89,15 @@ func StartReceivingUpdates(bot *tgbotapi.BotAPI) {
 func DetermineCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, profile *objects.Profile) {
 	switch message.Command() {
 	case "start":
-		HandleStart(bot, message)
+		HandleIntro(bot, message)
+	case "intro":
+		HandleIntro(bot, message)
+	case "help":
+		HandleHelp(bot, message)
+	case "payment":
+		HandlePayment(bot, message, profile)
+	case "reset":
+		HandleReset(bot, message, profile)
 	case "profile":
 		HandleProfile(bot, message, profile)
 	case "predictions":
@@ -103,6 +111,11 @@ func DetermineCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, profile *
 
 func DetermineCallback(bot *tgbotapi.BotAPI, callbackQuery *tgbotapi.CallbackQuery, profile *objects.Profile) {
 	chatID := callbackQuery.Message.Chat.ID
+	switch callbackQuery.Data {
+	case "pay":
+		HandlePayButton(bot, callbackQuery, profile)
+		return
+	}
 	SendText(bot, chatID, "Напишите /stop для отмены ввода")
 	switch callbackQuery.Data {
 	case "edit_name":

@@ -14,6 +14,8 @@ import (
 type Profile struct {
 	Username     string    `type:"internal" json:"username"`
 	ChatID       int64     `type:"internal" json:"chat_id"`
+	Predictions  int64     `type:"internal" json:"predictions"`
+	Quote        int64     `type:"internal" json:"quote"`
 	EditingField string    `type:"internal" json:"editing_field"`
 	Name         string    `type:"required" json:"name"`
 	Surname      string    `type:"optional" json:"surname"`
@@ -25,7 +27,7 @@ type Profile struct {
 }
 
 func NewProfile(username string, chatId int64) Profile {
-	return Profile{Username: username, ChatID: chatId}
+	return Profile{Username: username, ChatID: chatId, Quote: 3}
 }
 
 func ParseDate(birthdate string) (time.Time, error) {
@@ -37,7 +39,17 @@ func ParseDate(birthdate string) (time.Time, error) {
 	return parsed, nil
 }
 
-func FormatProfileMessage(profile *Profile) string {
+func (p *Profile) ResetProfile() {
+	p.Name = ""
+	p.Surname = ""
+	p.BirthDate = time.Time{}
+	p.Bio = ""
+	p.WorkPlace = ""
+	p.StudyPlace = ""
+	p.Hobby = ""
+}
+
+func (p *Profile) FormatProfileMessage() string {
 	requiredFields := []string{"Name", "BirthDate"}
 	fieldStatus := func(field string) string {
 		for _, requiredField := range requiredFields {
@@ -60,21 +72,21 @@ func FormatProfileMessage(profile *Profile) string {
 		return res
 	}
 	res := "*Ваш профиль*:\n"
-	res += formatRow("Имя", profile.Name, "Name")
-	res += formatRow("Фамилия", profile.Surname, "Surname")
-	if profile.BirthDate.IsZero() {
+	res += formatRow("Имя", p.Name, "Name")
+	res += formatRow("Фамилия", p.Surname, "Surname")
+	if p.BirthDate.IsZero() {
 		res += formatRow("Дата рождения", "", "BirthDate")
 	} else {
-		res += formatRow("Дата рождения", profile.BirthDate.Format("02.01.2006"), "BirthDate")
+		res += formatRow("Дата рождения", p.BirthDate.Format("02.01.2006"), "BirthDate")
 	}
-	res += formatRow("Место работы", profile.WorkPlace, "WorkPlace")
-	res += formatRow("Место учёбы", profile.StudyPlace, "StudyPlace")
-	res += formatRow("Хобби", profile.Hobby, "Hobby")
-	res += formatRow("Биография", profile.Bio, "Bio")
+	res += formatRow("Место работы", p.WorkPlace, "WorkPlace")
+	res += formatRow("Место учёбы", p.StudyPlace, "StudyPlace")
+	res += formatRow("Хобби", p.Hobby, "Hobby")
+	res += formatRow("Биография", p.Bio, "Bio")
 	return res
 }
 
-func ProfileKeyboard() tgbotapi.InlineKeyboardMarkup {
+func (p *Profile) GetKeyboard() tgbotapi.InlineKeyboardMarkup {
 	buttons := []tgbotapi.InlineKeyboardButton{
 		tgbotapi.NewInlineKeyboardButtonData("Изменить имя", "edit_name"),
 		tgbotapi.NewInlineKeyboardButtonData("Изменить фамилию", "edit_surname"),
@@ -94,8 +106,22 @@ func ProfileKeyboard() tgbotapi.InlineKeyboardMarkup {
 	return tgbotapi.NewInlineKeyboardMarkup(keyboard...)
 }
 
-func ProfileAIMessage(profile *Profile) (string, error) {
-	v := reflect.ValueOf(*profile)
+func (p *Profile) GetPaymentKeyboard() tgbotapi.InlineKeyboardMarkup {
+	buttons := []tgbotapi.InlineKeyboardButton{
+		tgbotapi.NewInlineKeyboardButtonData("Увеличить квоту", "pay"),
+	}
+
+	var keyboard [][]tgbotapi.InlineKeyboardButton
+	for _, btn := range buttons {
+		row := tgbotapi.NewInlineKeyboardRow(btn)
+		keyboard = append(keyboard, row)
+	}
+
+	return tgbotapi.NewInlineKeyboardMarkup(keyboard...)
+}
+
+func (p *Profile) ProfileAIMessage() (string, error) {
+	v := reflect.ValueOf(*p)
 	t := v.Type()
 
 	var res string

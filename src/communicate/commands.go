@@ -2,6 +2,7 @@ package communicate
 
 import (
 	"errors"
+	"fmt"
 
 	"tgbot-numerologist/ai"
 	"tgbot-numerologist/database"
@@ -11,14 +12,57 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-func HandleStart(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
+func HandleIntro(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
+	SendText(bot, message.Chat.ID, utils.IntroMessage)
+}
+
+func HandleHelp(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	SendText(bot, message.Chat.ID, utils.HelpMessage)
 }
 
-func HandleProfile(bot *tgbotapi.BotAPI, message *tgbotapi.Message, profile *objects.Profile) {
-	msgText := objects.FormatProfileMessage(profile)
+func HandlePayment(bot *tgbotapi.BotAPI, message *tgbotapi.Message, profile *objects.Profile) {
+	msgText := fmt.Sprintf(utils.PaymentMessage, profile.Quote, profile.Predictions)
 	msg := tgbotapi.NewMessage(profile.ChatID, msgText)
-	msg.ReplyMarkup = objects.ProfileKeyboard()
+	msg.ReplyMarkup = profile.GetPaymentKeyboard()
+	msg.ParseMode = "Markdown"
+
+	SendMessage(bot, &msg)
+}
+
+func HandlePayButton(bot *tgbotapi.BotAPI, callbackQuery *tgbotapi.CallbackQuery, profile *objects.Profile) {
+	chatID := callbackQuery.Message.Chat.ID
+	profile.Quote += 1
+	err := database.SaveProfileToRedis(profile)
+	if err != nil {
+		utils.Log("error on save profile when edit: %s", err.Error())
+		SendError(bot, callbackQuery.Message.Chat.ID, errors.New(utils.ErrGotSomeProblems))
+		return
+	}
+	utils.Log("successfully saved data to redis")
+	SendText(bot, chatID, "Квота увеличена")
+	msgText := fmt.Sprintf(utils.PaymentMessage, profile.Quote, profile.Predictions)
+	msg := tgbotapi.NewMessage(profile.ChatID, msgText)
+	msg.ReplyMarkup = profile.GetPaymentKeyboard()
+	msg.ParseMode = "Markdown"
+
+	SendMessage(bot, &msg)
+}
+
+func HandleReset(bot *tgbotapi.BotAPI, message *tgbotapi.Message, profile *objects.Profile) {
+	profile.ResetProfile()
+	err := database.SaveProfileToRedis(profile)
+	if err != nil {
+		utils.Log("error on save profile when edit: %s", err.Error())
+		SendError(bot, message.Chat.ID, errors.New(utils.ErrGotSomeProblems))
+		return
+	}
+	SendText(bot, message.Chat.ID, "Данные о вашем профиле очищены")
+}
+
+func HandleProfile(bot *tgbotapi.BotAPI, message *tgbotapi.Message, profile *objects.Profile) {
+	msgText := profile.FormatProfileMessage()
+	msg := tgbotapi.NewMessage(profile.ChatID, msgText)
+	msg.ReplyMarkup = profile.GetKeyboard()
 	msg.ParseMode = "Markdown"
 
 	SendMessage(bot, &msg)
@@ -55,9 +99,10 @@ func HandleEditMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, profile 
 
 	profile.EditingField = ""
 
-	msgText := "Ваш профиль обновлен:\n" + objects.FormatProfileMessage(profile)
+	SendText(bot, chatID, "Ваш профиль обновлен")
+	msgText := profile.FormatProfileMessage()
 	msg := tgbotapi.NewMessage(chatID, msgText)
-	msg.ReplyMarkup = objects.ProfileKeyboard()
+	msg.ReplyMarkup = profile.GetKeyboard()
 	msg.ParseMode = "Markdown"
 
 	err := database.SaveProfileToRedis(profile)
@@ -71,9 +116,13 @@ func HandleEditMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, profile 
 }
 
 func HandlePredictions(bot *tgbotapi.BotAPI, message *tgbotapi.Message, profile *objects.Profile) {
+	if profile.Quote == 0 {
+		SendText(bot, message.Chat.ID, "У вас закончилась квота на запросы. Пополните ее в разделе /payment")
+		return
+	}
 	var messages []ai.Message
 	messages = append(messages, ai.Message{Role: ai.RoleSystem, Content: utils.SystemPrompt})
-	profileStr, err := objects.ProfileAIMessage(profile)
+	profileStr, err := profile.ProfileAIMessage()
 	utils.Log("Profile message: %s", profileStr)
 	if err != nil {
 		utils.Log("Err formatting profile: %s", err.Error())
@@ -91,10 +140,26 @@ func HandlePredictions(bot *tgbotapi.BotAPI, message *tgbotapi.Message, profile 
 	utils.Log("AI Answer: %s", msgText)
 	msg := tgbotapi.NewMessage(message.Chat.ID, msgText)
 	msg.ParseMode = "Markdown"
-	SendMessage(bot, &msg)
+	if SendMessage(bot, &msg) {
+		profile.Quote -= 1
+		err = database.SaveProfileToRedis(profile)
+		if err != nil {
+			utils.Log("error on save profile when edit: %s", err.Error())
+			SendError(bot, message.Chat.ID, errors.New(utils.ErrGotSomeProblems))
+			return
+		}
+	} else {
+		utils.Log("error on send message. useless query")
+	}
 }
 
 func HandleStop(bot *tgbotapi.BotAPI, message *tgbotapi.Message, profile *objects.Profile) {
+	if profile.EditingField == "" {
+		msgText := "Вы не находитесь в режиме изменения профиля"
+		msg := tgbotapi.NewMessage(message.Chat.ID, msgText)
+		SendMessage(bot, &msg)
+		return
+	}
 	profile.EditingField = ""
 	err := database.SaveProfileToRedis(profile)
 	if err != nil {
@@ -102,9 +167,9 @@ func HandleStop(bot *tgbotapi.BotAPI, message *tgbotapi.Message, profile *object
 		SendError(bot, message.Chat.ID, errors.New(utils.ErrGotSomeProblems))
 		return
 	}
-	msgText := "Ввод отменен:\n" + objects.FormatProfileMessage(profile)
+	msgText := "Ввод отменен:\n" + profile.FormatProfileMessage()
 	msg := tgbotapi.NewMessage(message.Chat.ID, msgText)
-	msg.ReplyMarkup = objects.ProfileKeyboard()
+	msg.ReplyMarkup = profile.GetKeyboard()
 	msg.ParseMode = "Markdown"
 	SendMessage(bot, &msg)
 }
